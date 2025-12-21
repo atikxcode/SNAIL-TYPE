@@ -8,18 +8,21 @@ module.exports = {
     theme: {
         extend: {
             colors: {
-                'bg-dark': '#323437',
-                'bg-darker': '#2c2e31',
-                'text-main': '#d1d0c5',
-                'text-sub': '#646669',
-                'text-active': '#d1d0c5',
-                'caret-color': '#e2b714',
-                'error': '#ca4754',
-                'error-dark': '#ca4754',
+                'bg-dark': 'var(--bg-color)',
+                'bg-darker': 'var(--bg-darker)',
+                'text-main': 'var(--text-main)',
+                'text-sub': 'var(--text-sub)',
+                'caret-color': 'var(--caret-color)',
+                'error': 'var(--error-color)',
+                'error-dark': 'var(--error-extra-color)',
             },
             fontFamily: {
-                mono: ['monospace'],
+                mono: ['"JetBrains Mono"', 'monospace'],
+                sans: ['Inter', 'sans-serif'],
             },
+            boxShadow: {
+                'glow': '0 0 20px rgba(88, 166, 255, 0.15)',
+            }
         },
     },
     plugins: [],

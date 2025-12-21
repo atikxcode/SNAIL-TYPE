@@ -55,7 +55,9 @@ export const useTypingStore = create((set, get) => ({
     correctChars: 0,
     totalChars: 0,
     showResults: false,
-    sessionId: null
+    sessionId: null,
+    wpmHistory: [],
+    wpmHistory: []
   }),
 
   endTestByTime: () => set((state) => {
@@ -172,6 +174,25 @@ export const useTypingStore = create((set, get) => ({
     }
   },
 
+  backspaceWord: () => {
+    const state = get();
+    // Only allow backspace if we have history and the current input is empty
+    // (The component should check input empty, but we can check too or just execute)
+    if (state.currentWordIndex > 0 && state.history.length > 0) {
+      const newHistory = [...state.history];
+      const prevWord = newHistory.pop();
+
+      set({
+        currentWordIndex: state.currentWordIndex - 1,
+        inputValue: prevWord,
+        history: newHistory,
+        // We might want to remove the last error tracking if we were tracking specific errors
+        // But calculateStats recalculates everything based on history anyway.
+      });
+      get().calculateStats();
+    }
+  },
+
   calculateStats: () => {
     const state = get();
     if (!state.startTime) return;
@@ -233,6 +254,8 @@ export const useTypingStore = create((set, get) => ({
     settings: { ...state.settings, ...newSettings }
   })),
 
+  setTestDuration: (duration) => set({ testDuration: duration }),
+
   reset: () => set({
     currentWordIndex: 0,
     inputValue: '',
@@ -249,5 +272,25 @@ export const useTypingStore = create((set, get) => ({
     totalChars: 0,
     showResults: false,
     sessionId: null
-  })
+  }),
+
+  logWpmHistory: () => {
+    const state = get();
+    if (!state.isTestActive || !state.startTime) return;
+
+    const timeElapsed = (Date.now() - state.startTime) / 1000;
+    if (timeElapsed < 0) return;
+
+    set(state => ({
+      wpmHistory: [
+        ...state.wpmHistory,
+        {
+          time: Math.floor(timeElapsed),
+          wpm: state.wpm,
+          raw: state.rawWpm,
+          error: state.errors ? state.errors.length : 0
+        }
+      ]
+    }));
+  }
 }));

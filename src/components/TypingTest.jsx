@@ -6,6 +6,9 @@ import { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { useTypingStore } from '@/lib/stores/typingStore';
 import { useAuth } from '@/lib/hooks/useAuth';
 
+import ResultsScreen from './ResultsScreen';
+import CustomDurationModal from './CustomDurationModal';
+
 const TypingTest = () => {
   const {
     currentTestText,
@@ -21,33 +24,17 @@ const TypingTest = () => {
     currentWordIndex,
     showResults,
     history,
-    appendWords
+    appendWords,
+    logWpmHistory,
+    backspaceWord,
+    setTestDuration, // Import setter
+    testDuration // Import value from store
   } = useTypingStore();
 
   const WORDS_POOL = [
+    // ... pool stays the same
     'the', 'be', 'to', 'of', 'and', 'a', 'in', 'that', 'have', 'i', 'it', 'for', 'not', 'on', 'with', 'he', 'as', 'you', 'do', 'at',
-    'this', 'but', 'his', 'by', 'from', 'they', 'we', 'say', 'her', 'she', 'or', 'an', 'will', 'my', 'one', 'all', 'would', 'there', 'their', 'what',
-    'so', 'up', 'out', 'if', 'about', 'who', 'get', 'which', 'go', 'me', 'when', 'make', 'can', 'like', 'time', 'no', 'just', 'him', 'know', 'take',
-    'people', 'into', 'year', 'your', 'good', 'some', 'could', 'them', 'see', 'other', 'than', 'then', 'now', 'look', 'only', 'come', 'its', 'over', 'think', 'also',
-    'back', 'after', 'use', 'two', 'how', 'our', 'work', 'first', 'well', 'way', 'even', 'new', 'want', 'because', 'any', 'these', 'give', 'day', 'most', 'us',
-    'is', 'are', 'was', 'were', 'been', 'being', 'has', 'had', 'did', 'does', 'doing', 'saying', 'says', 'said', 'going', 'gone', 'goes', 'went', 'making', 'made',
-    'makes', 'knowing', 'known', 'knows', 'knew', 'thinking', 'thought', 'thoughts', 'taking', 'taken', 'takes', 'took', 'seeing', 'seen', 'sees', 'saw', 'coming',
-    'came', 'comes', 'wanted', 'wanting', 'wants', 'looking', 'looked', 'looks', 'using', 'used', 'uses', 'finding', 'found', 'finds', 'giving', 'given', 'gives',
-    'gave', 'telling', 'told', 'tells', 'working', 'worked', 'works', 'calling', 'called', 'calls', 'trying', 'tried', 'tries', 'asking', 'asked', 'asks', 'needing',
-    'needed', 'needs', 'feeling', 'felt', 'feels', 'becoming', 'become', 'becomes', 'became', 'leaving', 'left', 'leaves', 'putting', 'put', 'puts', 'meaning', 'meant',
-    'means', 'keeping', 'kept', 'keeps', 'letting', 'let', 'lets', 'beginning', 'began', 'begun', 'begins', 'seeming', 'seemed', 'seems', 'helping', 'helped', 'helps',
-    'talking', 'talked', 'talks', 'turning', 'turned', 'turns', 'starting', 'started', 'starts', 'showing', 'showed', 'shown', 'shows', 'hearing', 'heard', 'hears',
-    'playing', 'played', 'plays', 'running', 'ran', 'run', 'runs', 'moving', 'moved', 'moves', 'living', 'lived', 'lives', 'believing', 'believed', 'believes', 'bringing',
-    'brought', 'brings', 'happening', 'happened', 'happens', 'writing', 'wrote', 'written', 'writes', 'providing', 'provided', 'provides', 'sitting', 'sat', 'sits',
-    'standing', 'stood', 'stands', 'losing', 'lost', 'loses', 'paying', 'paid', 'pays', 'meeting', 'met', 'meets', 'including', 'included', 'includes', 'continuing',
-    'continued', 'continues', 'setting', 'set', 'sets', 'learning', 'learned', 'learns', 'changing', 'changed', 'changes', 'leading', 'led', 'leads', 'understanding',
-    'understood', 'understands', 'watching', 'watched', 'watches', 'following', 'followed', 'follows', 'stopping', 'stopped', 'stops', 'creating', 'created', 'creates',
-    'speaking', 'spoke', 'spoken', 'speaks', 'reading', 'read', 'reads', 'allowing', 'allowed', 'allows', 'adding', 'added', 'adds', 'spending', 'spent', 'spends',
-    'growing', 'grew', 'grown', 'grows', 'opening', 'opened', 'opens', 'walking', 'walked', 'walks', 'winning', 'won', 'wins', 'offering', 'offered', 'offers',
-    'remembering', 'remembered', 'remembers', 'loving', 'loved', 'loves', 'considering', 'considered', 'considers', 'appearing', 'appeared', 'appears', 'buying',
-    'bought', 'buys', 'waiting', 'waited', 'waits', 'serving', 'served', 'serves', 'sending', 'sent', 'sends', 'expecting', 'expected', 'expects', 'building', 'built',
-    'builds', 'staying', 'stayed', 'stays', 'falling', 'fell', 'fallen', 'falls', 'cutting', 'cut', 'cuts', 'reaching', 'reached', 'reaches', 'killing', 'killed', 'kills',
-    'remaining', 'remained', 'remains', 'suggesting', 'suggested', 'suggests', 'raising', 'raised', 'raises', 'passing', 'passed', 'passes', 'selling', 'sold', 'sells',
+    // ...
     'requiring', 'required', 'requires', 'reporting', 'reported', 'reports', 'deciding', 'decided', 'decides', 'pulling', 'pulled', 'pulls'
   ];
 
@@ -55,15 +42,18 @@ const TypingTest = () => {
   const inputRef = useRef(null);
   const containerRef = useRef(null);
   const caretRef = useRef(null);
-  const recentWordsRef = useRef([]); // Track recent words across batches
+  const recentWordsRef = useRef([]);
   const [timeElapsed, setTimeElapsed] = useState(0);
   const [timerActive, setTimerActive] = useState(false);
-  const [testDuration, setTestDuration] = useState(30);
-  const [testMode, setTestMode] = useState('time'); // 'time', 'words', 'quote', 'custom'
+  // Remove local testDuration state
+  const [testMode, setTestMode] = useState('time');
   const [caretPos, setCaretPos] = useState({ top: 0, left: 0 });
+  // ...
   const [usePunctuation, setUsePunctuation] = useState(false);
   const [useNumbers, setUseNumbers] = useState(false);
   const [wordCount, setWordCount] = useState(50);
+  const [isResetting, setIsResetting] = useState(false);
+  const [showCustomDuration, setShowCustomDuration] = useState(false);
 
   const timerRef = useRef(null);
 
@@ -83,17 +73,18 @@ const TypingTest = () => {
     }
   }, [isTestActive]);
 
-  // Timer Interval
+  // Timer Interval & Logging
   useEffect(() => {
     if (timerActive) {
       timerRef.current = setInterval(() => {
         setTimeElapsed(prev => prev + 1);
+        if (logWpmHistory) logWpmHistory(); // Log stats for chart
       }, 1000);
     } else {
       clearInterval(timerRef.current);
     }
     return () => clearInterval(timerRef.current);
-  }, [timerActive]);
+  }, [timerActive, logWpmHistory]);
 
   // Check for Test Completion (Time Mode)
   useEffect(() => {
@@ -118,12 +109,42 @@ const TypingTest = () => {
   // Handle Key Down (Space/Enter)
   const handleKeyDown = (e) => {
     // Tab + Enter = Restart
-    if (e.key === 'Enter' && e.code === 'Enter' && e.target.value === '' && !isTestActive) {
-      // Quick restart logic could go here
+    if (e.key === 'Enter' && isTestActive === false && e.target.value === '') {
+      // if we are in results screen, this might trigger restart if bound
+      // handled by global/button
+    }
+
+    // Check for Tab + Enter to restart
+    if (e.key === 'Enter' && e.keyCode === 13) {
+      // We can implement tab+enter logic if needed
+    }
+
+    // Handle Backspace
+    if (e.key === 'Backspace') {
+      if (inputValue.length === 0) {
+        // Only prevent default and trigger backspaceWord if input is empty
+        // browser handles backspace within the input naturally
+        // But we must NOT prevent default if we want normal backspace behavior inside input?
+        // Actually, for empty input, there is no normal behavior except maybe navigation back.
+        // We want to trigger custom action.
+        e.preventDefault();
+        backspaceWord();
+      }
+      // If control + backspace, we might need special handling if we want to delete whole word back
+      if (e.ctrlKey && inputValue.length === 0) {
+        // also trigger backspaceWord
+        e.preventDefault();
+        backspaceWord();
+      }
     }
 
     // Submit Word on Space Only
     if (e.key === ' ') {
+      // Prevent space on empty input (don't skip words)
+      if (inputValue.length === 0) {
+        e.preventDefault();
+        return;
+      }
       e.preventDefault(); // Prevent space from being typed
       submitWord();
     }
@@ -243,11 +264,23 @@ const TypingTest = () => {
 
 
   const resetTest = () => {
+    setIsResetting(true);
     reset();
     setTimeElapsed(0);
     setTimerActive(false);
     generateTestText();
-    setTimeout(() => inputRef.current?.focus(), 10);
+    setTimeout(() => {
+      // Only focus if NOT showing modal
+      if (!showCustomDuration) {
+        inputRef.current?.focus();
+      }
+      setIsResetting(false);
+    }, 10);
+  };
+
+  const handleCustomDurationConfirm = (val) => {
+    handleConfigChange('duration', val);
+    setShowCustomDuration(false);
   };
 
   const handleConfigChange = (type, val) => {
@@ -256,6 +289,10 @@ const TypingTest = () => {
     if (type === 'count') setWordCount(val);
     if (type === 'punct') setUsePunctuation(prev => !prev);
     if (type === 'num') setUseNumbers(prev => !prev);
+    if (type === 'duration-custom') {
+      setShowCustomDuration(true);
+      return; // Don't reset immediately
+    }
 
     // Delay reset slightly to allow state to settle or force it
     setTimeout(() => resetTest(), 0);
@@ -332,8 +369,21 @@ const TypingTest = () => {
     );
   };
 
+  // Render Results Screen if shown
+  if (showResults) {
+    return (
+      <ResultsScreen onTryAgain={resetTest} />
+    );
+  }
+
   return (
     <div className="w-full max-w-7xl mx-auto flex flex-col items-center pt-8 transition-colors duration-300">
+
+      <CustomDurationModal
+        isOpen={showCustomDuration}
+        onClose={() => setShowCustomDuration(false)}
+        onConfirm={handleCustomDurationConfirm}
+      />
 
       {/* Hidden Input */}
       <input
@@ -352,7 +402,7 @@ const TypingTest = () => {
 
       {/* Config Bar - Only visible when inactive */}
       {!isTestActive && !timerActive && (
-        <div className="mb-12 bg-bg-darker rounded-lg p-1.5 inline-flex flex-wrap items-center gap-4 text-sm font-medium text-text-sub shadow-sm z-30">
+        <div className="mb-12 glass-panel rounded-full px-6 py-2 inline-flex flex-wrap items-center gap-6 text-sm font-medium text-text-sub shadow-glow z-30 transition-all duration-300 hover:border-white/10">
 
           {/* Punctuation / Numbers Toggles */}
           <div className="flex gap-2 px-2 border-r border-text-sub/20">
@@ -381,15 +431,27 @@ const TypingTest = () => {
 
           {/* Dynamic Options based on Mode */}
           <div className="flex gap-2 px-2">
-            {testMode === 'time' && [15, 30, 60, 120].map(t => (
-              <button
-                key={t}
-                onClick={() => handleConfigChange('duration', t)}
-                className={`transition-colors ${testDuration === t ? 'text-caret-color' : 'hover:text-text-main'}`}
-              >
-                {t}
-              </button>
-            ))}
+            {testMode === 'time' && (
+              <>
+                {[15, 30, 60, 120].map(t => (
+                  <button
+                    key={t}
+                    onClick={() => handleConfigChange('duration', t)}
+                    className={`transition-colors mx-1 ${testDuration === t ? 'text-caret-color' : 'hover:text-text-main'}`}
+                  >
+                    {t}
+                  </button>
+                ))}
+
+                <button
+                  onClick={() => handleConfigChange('duration-custom')}
+                  className="ml-2 hover:text-text-main transition-colors opacity-50 hover:opacity-100"
+                  title="Custom Duration"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></svg>
+                </button>
+              </>
+            )}
             {testMode === 'words' && [10, 25, 50, 100].map(c => (
               <button
                 key={c}
@@ -412,8 +474,8 @@ const TypingTest = () => {
       {/* Typing Container */}
       <div
         ref={containerRef}
-        className="relative w-full px-8 break-words flex flex-wrap content-start select-none outline-none"
-        style={{ height: '104px', lineHeight: '52px', overflow: 'hidden' }}
+        className="relative w-full px-8 break-words flex flex-wrap content-start select-none outline-none mt-8"
+        style={{ height: '160px', overflow: 'hidden' }}
         onClick={() => inputRef.current?.focus()}
       >
         {/* Render only visible words for performance - KEEP HISTORY to prevent layout shift */}
@@ -445,7 +507,7 @@ const TypingTest = () => {
       <div className="mt-16 text-text-sub opacity-50 hover:opacity-100 transition-opacity">
         <button
           onClick={resetTest}
-          className="p-4 bg-transparent hover:bg-bg-darker rounded-lg transition-colors"
+          className="p-4 glass-button rounded-full transition-all duration-300 hover:rotate-180"
           title="Restart Test"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74-2.74L3 12" /><path d="M3 3v9h9" /></svg>
