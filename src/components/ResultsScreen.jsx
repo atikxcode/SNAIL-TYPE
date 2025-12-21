@@ -35,6 +35,9 @@ const ResultsScreen = ({ onTryAgain }) => {
         testDuration,
         wordCount,
         correctChars,
+        incorrectChars,
+        extraChars,
+        missedChars,
         totalChars, // total keystrokes (approx)
         wpmHistory,
         history
@@ -144,10 +147,7 @@ const ResultsScreen = ({ onTryAgain }) => {
 
     // Calculate characters stats
     // correct / incorrect / extra / missed
-    // Simple approximation based on totalChars and accuracy
-    // correctChars is from store
-    const incorrectChars = totalChars - correctChars;
-    // This is simplified. Ideally store should track detailed errors.
+    // direct from store now
 
     // Consistency (simple calc: 100 - standard deviation / mean * 100 ?)
     // Or just placeholder for now
@@ -181,28 +181,29 @@ const ResultsScreen = ({ onTryAgain }) => {
 
             {/* Detail Stats Grid */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-8 text-text-sub font-mono text-sm">
-                <div className="flex flex-col gap-1">
-                    <span className="text-xs text-text-sub opacity-50">test type</span>
-                    <span className="text-text-main">{testMode} {testMode === 'time' ? testDuration : wordCount}</span>
-                    <span className="text-text-main">english</span>
+                <div className="flex flex-col gap-1 group cursor-default transition-all duration-300 hover:scale-105">
+                    <span className="text-xs text-text-sub opacity-50 group-hover:opacity-100 transition-opacity">test type</span>
+                    <span className="text-text-main font-bold">{testMode} {testMode === 'time' ? testDuration : wordCount}</span>
+                    <span className="text-text-main text-xs opacity-70">english</span>
                 </div>
-                <div className="flex flex-col gap-1">
-                    <span className="text-xs text-text-sub opacity-50">raw</span>
-                    <span className="text-text-main text-2xl">{Math.floor(rawWpm)}</span>
+                <div className="flex flex-col gap-1 group cursor-default transition-all duration-300 hover:scale-105">
+                    <span className="text-xs text-text-sub opacity-50 group-hover:opacity-100 transition-opacity">raw</span>
+                    <span className="text-text-main text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-br from-white to-gray-500">{Math.floor(rawWpm)}</span>
                 </div>
-                <div className="flex flex-col gap-1">
-                    <span className="text-xs text-text-sub opacity-50">characters</span>
-                    <span className="text-text-main text-2xl" title="correct/incorrect/extra/missed">
-                        {correctChars}/{incorrectChars}/0/0
+                <div className="flex flex-col gap-1 group cursor-default transition-all duration-300 hover:scale-105">
+                    <span className="text-xs text-text-sub opacity-50 group-hover:opacity-100 transition-opacity" title="correct / incorrect / extra / missed">characters</span>
+                    <span className="text-3xl font-medium tracking-wide">
+                        <span className="text-text-main">{correctChars}</span><span className="text-text-sub/50">/</span><span className="text-error">{incorrectChars}</span><span className="text-text-sub/50">/</span><span className="text-text-sub">{extraChars}</span><span className="text-text-sub/50">/</span><span className="text-text-sub">{missedChars}</span>
                     </span>
+                    <span className="text-[10px] text-text-sub opacity-0 group-hover:opacity-60 transition-opacity">correct/incorrect/extra/missed</span>
                 </div>
-                <div className="flex flex-col gap-1">
-                    <span className="text-xs text-text-sub opacity-50">consistency</span>
-                    <span className="text-text-main text-2xl">{consistency}</span>
+                <div className="flex flex-col gap-1 group cursor-default transition-all duration-300 hover:scale-105">
+                    <span className="text-xs text-text-sub opacity-50 group-hover:opacity-100 transition-opacity">consistency</span>
+                    <span className="text-text-main text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-br from-white to-gray-500">{consistency}</span>
                 </div>
-                <div className="flex flex-col gap-1">
-                    <span className="text-xs text-text-sub opacity-50">time</span>
-                    <span className="text-text-main text-2xl">{testMode === 'time' ? `${testDuration}s` : '0:35s'}</span>
+                <div className="flex flex-col gap-1 group cursor-default transition-all duration-300 hover:scale-105">
+                    <span className="text-xs text-text-sub opacity-50 group-hover:opacity-100 transition-opacity">time</span>
+                    <span className="text-text-main text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-br from-white to-gray-500">{testMode === 'time' ? `${testDuration}s` : '0:35s'}</span>
                 </div>
             </div>
 

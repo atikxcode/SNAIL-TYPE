@@ -34,6 +34,9 @@ export const useTypingStore = create((set, get) => ({
   testText: [],
   currentTestText: [],
   correctChars: 0,
+  incorrectChars: 0,
+  extraChars: 0,
+  missedChars: 0,
   totalChars: 0,
   showResults: false,
   sessionId: null,
@@ -53,6 +56,9 @@ export const useTypingStore = create((set, get) => ({
     accuracy: 0,
     currentTestText: testText,
     correctChars: 0,
+    incorrectChars: 0,
+    extraChars: 0,
+    missedChars: 0,
     totalChars: 0,
     showResults: false,
     sessionId: null,
@@ -200,49 +206,73 @@ export const useTypingStore = create((set, get) => ({
     const timeElapsed = (state.endTime || Date.now()) - state.startTime;
     const timeInMinutes = timeElapsed / 60000;
 
-    // Calculate raw WPM (characters per minute / 5)
-    let totalCharsTyped = state.inputValue.length;
-    state.history.forEach(word => totalCharsTyped += word.length + 1); // +1 for space
-
-    const rawWpm = timeInMinutes > 0 ? (totalCharsTyped / 5) / timeInMinutes : 0;
-
-    // Calculate accuracy
-    let correctChars = 0;
-    let totalChars = 0;
+    // Calculate detailed character stats
+    let correct = 0;
+    let incorrect = 0;
+    let extra = 0;
+    let missed = 0;
+    let totalCharsTyped = 0;
 
     // Check history (completed words)
-    // NOTE: This logic mimics Monkeytype where we penalize uncorrected errors
     state.history.forEach((typedWord, i) => {
       const targetWord = state.currentTestText[i];
       if (targetWord) {
-        for (let j = 0; j < Math.max(typedWord.length, targetWord.length); j++) {
-          if (typedWord[j] === targetWord[j]) correctChars++;
-          totalChars++;
+        // Correct & Incorrect
+        for (let j = 0; j < Math.min(typedWord.length, targetWord.length); j++) {
+          if (typedWord[j] === targetWord[j]) correct++;
+          else incorrect++;
+        }
+        // Extra
+        if (typedWord.length > targetWord.length) {
+          extra += typedWord.length - targetWord.length;
+        }
+        // Missed (if word was submitted/skipped without completing)
+        if (typedWord.length < targetWord.length) {
+          missed += targetWord.length - typedWord.length;
         }
       }
+      totalCharsTyped += typedWord.length + 1; // +1 space
     });
 
-    // Current word
+    // Current word (in progress)
     const currentWord = state.currentTestText[state.currentWordIndex] || '';
-    for (let i = 0; i < Math.min(state.inputValue.length, currentWord.length); i++) {
-      if (state.inputValue[i] === currentWord[i]) {
-        correctChars++;
-      }
-      totalChars++;
-    }
+    const currentInput = state.inputValue;
+    totalCharsTyped += currentInput.length;
 
-    // Checking extra chars in current word
-    if (state.inputValue.length > currentWord.length) {
-      totalChars += state.inputValue.length - currentWord.length;
+    for (let i = 0; i < Math.min(currentInput.length, currentWord.length); i++) {
+      if (currentInput[i] === currentWord[i]) correct++;
+      else incorrect++;
     }
+    if (currentInput.length > currentWord.length) {
+      extra += currentInput.length - currentWord.length;
+    }
+    // Note: We don't count "missed" for the current word as it's not finished yet
 
-    const accuracy = totalChars > 0 ? (correctChars / totalChars) * 100 : 100;
+    // Calculate Raw WPM
+    const rawWpm = timeInMinutes > 0 ? (totalCharsTyped / 5) / timeInMinutes : 0;
+
+    // Accuracy Calculation
+    // Standard formula: (Total - Incorrect) / Total * 100? Or Correct / Total?
+    // Monkeytype uses (Correct chars) / (Correct + Incorrect + Extra + Missed)? 
+    // Or just (Correct / Total Keypresses)?
+    // Let's use: Correct / (Correct + Incorrect + Extra + Missed) * 100
+    // Actually standard is often (Net WPM) logic.
+    // Let's stick to simple: (Correct / (Correct + Incorrect + Extra)) * 100 for accuracy of typing.
+    // "Missed" counts against completion but maybe not accuracy of pressed keys?
+    // Let's use: Correct / (Correct + Incorrect + Extra) * 100.
+    const totalEntries = correct + incorrect + extra;
+    const accuracy = totalEntries > 0 ? (correct / totalEntries) * 100 : 0;
+
     const wpm = rawWpm * (accuracy / 100);
 
     set({
       rawWpm: parseFloat(rawWpm.toFixed(2)),
       accuracy: parseFloat(accuracy.toFixed(2)),
-      wpm: parseFloat(wpm.toFixed(2))
+      wpm: parseFloat(wpm.toFixed(2)),
+      correctChars: correct,
+      incorrectChars: incorrect,
+      extraChars: extra,
+      missedChars: missed
     });
   },
 
@@ -269,6 +299,9 @@ export const useTypingStore = create((set, get) => ({
     accuracy: 0,
     currentTestText: [],
     correctChars: 0,
+    incorrectChars: 0,
+    extraChars: 0,
+    missedChars: 0,
     totalChars: 0,
     showResults: false,
     sessionId: null
