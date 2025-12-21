@@ -263,6 +263,51 @@ const TypingTest = () => {
   }, [inputValue, currentWordIndex, currentTestText]);
 
 
+  // Focus & AFK Detection Logic
+  const [isFocused, setIsFocused] = useState(true);
+  const lastInputTime = useRef(Date.now());
+  const { addAfkDuration } = useTypingStore();
+
+  useEffect(() => {
+    const onFocus = () => {
+      setIsFocused(true);
+      lastInputTime.current = Date.now(); // Reset timer on focus
+      inputRef.current?.focus();
+    };
+    const onBlur = () => setIsFocused(false);
+
+    window.addEventListener('focus', onFocus);
+    window.addEventListener('blur', onBlur);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('blur', onBlur);
+    };
+  }, []);
+
+  // AFK Check Interval
+  useEffect(() => {
+    let interval;
+    if (isTestActive && !showResults && isFocused) {
+      interval = setInterval(() => {
+        const now = Date.now();
+        const diff = now - lastInputTime.current;
+        // User wants: "if you find a user is not keystroking in their keyboard for more than 1 second then count that second until he comes back"
+        if (diff > 1000) {
+          addAfkDuration(100); // Add interval duration
+        }
+      }, 100);
+    }
+    return () => clearInterval(interval);
+  }, [isTestActive, showResults, isFocused, addAfkDuration]);
+
+  // Update lastInputTime on user action
+  useEffect(() => {
+    if (isTestActive) {
+      lastInputTime.current = Date.now();
+    }
+  }, [inputValue]);
+
+
   const resetTest = () => {
     setIsResetting(true);
     reset();
@@ -393,11 +438,12 @@ const TypingTest = () => {
         onChange={handleInputChange}
         onKeyDown={handleKeyDown}
         className="opacity-0 absolute top-0 left-0 cursor-default"
-        autoFocus
+        autoFocus={!showCustomDuration}
         autoComplete="off"
         autoCorrect="off"
         spellCheck="false"
         autoCapitalize="off"
+        disabled={showCustomDuration}
       />
 
       {/* Config Bar - Only visible when inactive */}
@@ -462,7 +508,6 @@ const TypingTest = () => {
               </button>
             ))}
           </div>
-
         </div>
       )}
 

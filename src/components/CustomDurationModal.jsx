@@ -17,10 +17,26 @@ const CustomDurationModal = ({ isOpen, onClose, onConfirm }) => {
         e.preventDefault();
         if (!value) return;
 
-        // Parse value (simple number for now as per requirement, but could be extended)
-        const seconds = parseInt(value, 10);
-        if (!isNaN(seconds) && seconds >= 0) {
-            onConfirm(seconds);
+        let totalSeconds = 0;
+        const str = value.trim();
+
+        // Check if it's just a number (default to seconds)
+        if (/^\d+$/.test(str)) {
+            totalSeconds = parseInt(str, 10);
+        } else {
+            // Parse with regex for h/m/s (case insensitive)
+            const hoursMatch = str.match(/(\d+)\s*[hH]/);
+            const minutesMatch = str.match(/(\d+)\s*[mM]/);
+            const secondsMatch = str.match(/(\d+)\s*[sS]/);
+
+            if (hoursMatch) totalSeconds += parseInt(hoursMatch[1], 10) * 3600;
+            if (minutesMatch) totalSeconds += parseInt(minutesMatch[1], 10) * 60;
+            if (secondsMatch) totalSeconds += parseInt(secondsMatch[1], 10);
+        }
+
+        // Must be at least 1 second
+        if (!isNaN(totalSeconds) && totalSeconds >= 1) {
+            onConfirm(totalSeconds);
         }
         onClose();
     };
@@ -32,16 +48,12 @@ const CustomDurationModal = ({ isOpen, onClose, onConfirm }) => {
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md" onClick={onClose}>
             <div
-                className="w-full max-w-md bg-[#2c2e31] rounded-lg shadow-xl p-8 border border-gray-700"
+                className="w-full max-w-md glass-panel rounded-xl shadow-2xl p-8 transform transition-all scale-100"
                 onClick={e => e.stopPropagation()}
             >
-                <h2 className="text-2xl font-mono text-gray-400 mb-6">Test duration</h2>
-
-                <div className="text-gray-500 mb-2 font-mono text-sm">
-                    15 seconds
-                </div>
+                <h2 className="text-2xl font-sans font-bold text-text-main mb-6">Test duration</h2>
 
                 <form onSubmit={handleSubmit}>
                     <input
@@ -50,21 +62,19 @@ const CustomDurationModal = ({ isOpen, onClose, onConfirm }) => {
                         value={value}
                         onChange={(e) => setValue(e.target.value)}
                         onKeyDown={handleKeyDown}
-                        className="w-full bg-[#323437] text-white text-xl font-mono p-3 rounded border-none outline-none focus:ring-1 focus:ring-yellow-500 mb-4"
+                        className="w-full bg-black/20 text-text-main text-3xl font-mono p-4 rounded-lg border border-white/10 outline-none focus:border-caret-color focus:ring-1 focus:ring-caret-color mb-6 transition-all"
                         placeholder="15"
                     />
 
-                    <div className="text-gray-500 text-xs font-mono mb-4 leading-relaxed">
-                        You can use "h" for hours and "m" for minutes, for example "1h30m".
-                        <br /><br />
-                        You can start an infinite test by inputting 0. Then, to stop the test, use the Bail Out feature ( <span className="bg-gray-700 px-1 rounded">esc</span> or <span className="bg-gray-700 px-1 rounded">ctrl/cmd</span> + <span className="bg-gray-700 px-1 rounded">shift</span> + <span className="bg-gray-700 px-1 rounded">p</span> &gt; Bail Out)
+                    <div className="text-text-sub text-xs font-mono mb-8 leading-relaxed opacity-70">
+                        Format: <span className="text-caret-color">15</span> (seconds), <span className="text-caret-color">1m</span> (minute), <span className="text-caret-color">1h</span> (hour).
                     </div>
 
                     <button
                         type="submit"
-                        className="w-full bg-[#323437] hover:bg-white hover:text-black text-white font-mono py-2 rounded transition-colors"
+                        className="w-full bg-white/10 hover:bg-white/20 text-white font-medium py-3 rounded-lg transition-all active:scale-95 border border-white/5"
                     >
-                        ok
+                        Start Test
                     </button>
                 </form>
             </div>

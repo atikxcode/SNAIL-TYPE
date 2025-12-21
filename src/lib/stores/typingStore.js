@@ -38,6 +38,7 @@ export const useTypingStore = create((set, get) => ({
   extraChars: 0,
   missedChars: 0,
   totalChars: 0,
+  afkDuration: 0,
   showResults: false,
   sessionId: null,
   settings: { ...defaultSettings },
@@ -285,6 +286,8 @@ export const useTypingStore = create((set, get) => ({
   })),
 
   setTestDuration: (duration) => set({ testDuration: duration }),
+
+  addAfkDuration: (ms) => set((state) => ({ afkDuration: state.afkDuration + ms })),
 
   reset: () => set({
     currentWordIndex: 0,

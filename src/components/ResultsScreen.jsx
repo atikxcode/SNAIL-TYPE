@@ -40,7 +40,8 @@ const ResultsScreen = ({ onTryAgain }) => {
         missedChars,
         totalChars, // total keystrokes (approx)
         wpmHistory,
-        history
+        history,
+        afkDuration
     } = useTypingStore();
 
     const chartData = useMemo(() => {
@@ -204,6 +205,11 @@ const ResultsScreen = ({ onTryAgain }) => {
                 <div className="flex flex-col gap-1 group cursor-default transition-all duration-300 hover:scale-105">
                     <span className="text-xs text-text-sub opacity-50 group-hover:opacity-100 transition-opacity">time</span>
                     <span className="text-text-main text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-br from-white to-gray-500">{testMode === 'time' ? `${testDuration}s` : '0:35s'}</span>
+                </div>
+                {/* AFK Stat */}
+                <div className="flex flex-col gap-1 group cursor-default transition-all duration-300 hover:scale-105">
+                    <span className="text-xs text-text-sub opacity-50 group-hover:opacity-100 transition-opacity">afk</span>
+                    <span className="text-text-main text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-br from-white to-gray-500">{afkDuration > 0 ? (afkDuration / 1000).toFixed(0) : 0}s</span>
                 </div>
             </div>
 
