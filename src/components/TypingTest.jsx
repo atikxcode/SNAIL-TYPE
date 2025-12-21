@@ -265,45 +265,85 @@ const TypingTest = () => {
 
   // Focus & AFK Detection Logic
   const [isFocused, setIsFocused] = useState(true);
+  const [isIdle, setIsIdle] = useState(false);
+  const isIdleRef = useRef(false); // Track idle state without re-running effects
   const lastInputTime = useRef(Date.now());
+  const idleTimerRef = useRef(null);
   const { addAfkDuration } = useTypingStore();
+
+  const resetIdleTimer = () => {
+    setIsIdle(false);
+    isIdleRef.current = false;
+
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+
+    idleTimerRef.current = setTimeout(() => {
+      // Only trigger idle if not reviewing results
+      if (!showResults) {
+        setIsIdle(true);
+        isIdleRef.current = true;
+      }
+    }, 5000);
+  };
 
   useEffect(() => {
     const onFocus = () => {
       setIsFocused(true);
-      lastInputTime.current = Date.now(); // Reset timer on focus
+      lastInputTime.current = Date.now();
       inputRef.current?.focus();
+      resetIdleTimer();
     };
     const onBlur = () => setIsFocused(false);
 
+    // Activity listeners
+    const onInteraction = () => resetIdleTimer();
+    const onMouseMove = () => {
+      // Check REF instead of state to avoid dependency cycles
+      if (!isIdleRef.current) resetIdleTimer();
+    };
+
     window.addEventListener('focus', onFocus);
     window.addEventListener('blur', onBlur);
+    window.addEventListener('keydown', onInteraction);
+    window.addEventListener('mousedown', onInteraction);
+    window.addEventListener('touchstart', onInteraction);
+    window.addEventListener('mousemove', onMouseMove);
+
+    // Initial start
+    resetIdleTimer();
+
     return () => {
       window.removeEventListener('focus', onFocus);
       window.removeEventListener('blur', onBlur);
+      window.removeEventListener('keydown', onInteraction);
+      window.removeEventListener('mousedown', onInteraction);
+      window.removeEventListener('touchstart', onInteraction);
+      window.removeEventListener('mousemove', onMouseMove);
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     };
-  }, []);
+    // Removed isIdle from dependencies to prevent loop
+  }, [showResults]);
 
-  // AFK Check Interval
+  // AFK Check Interval (only counts when active, focused, and NOT idle)
   useEffect(() => {
     let interval;
-    if (isTestActive && !showResults && isFocused) {
+    if (isTestActive && !showResults && isFocused && !isIdle) {
       interval = setInterval(() => {
         const now = Date.now();
         const diff = now - lastInputTime.current;
-        // User wants: "if you find a user is not keystroking in their keyboard for more than 1 second then count that second until he comes back"
         if (diff > 1000) {
-          addAfkDuration(100); // Add interval duration
+          addAfkDuration(100);
         }
       }, 100);
     }
     return () => clearInterval(interval);
-  }, [isTestActive, showResults, isFocused, addAfkDuration]);
+  }, [isTestActive, showResults, isFocused, isIdle, addAfkDuration]);
 
   // Update lastInputTime on user action
   useEffect(() => {
     if (isTestActive) {
       lastInputTime.current = Date.now();
+      resetIdleTimer();
     }
   }, [inputValue]);
 
@@ -548,6 +588,26 @@ const TypingTest = () => {
 
       </div>
 
+      {/* Focus Blur Overlay */}
+      {(!isFocused || isIdle) && !showResults && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md cursor-pointer transition-all duration-500 animate-in fade-in"
+          onClick={() => {
+            inputRef.current?.focus();
+            setIsFocused(true);
+            resetIdleTimer();
+          }}
+        >
+          <div className="flex flex-col items-center gap-4 text-[#f0f6fc] animate-pulse">
+            <div className="p-4 rounded-full bg-white/5 border border-white/10 shadow-[0_0_30px_rgba(88,166,255,0.2)]">
+              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-caret-color"><path d="M7 7h10v10" /><path d="M7 17 17 7" /></svg>
+            </div>
+            <div className="text-xl font-mono font-medium tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-text-sub to-text-main">
+              {isIdle ? 'Inactive - Click to Wake' : 'Click to Resume'}
+            </div>
+          </div>
+        </div>
+      )}
       {/* Footer / Restart */}
       <div className="mt-16 text-text-sub opacity-50 hover:opacity-100 transition-opacity">
         <button
