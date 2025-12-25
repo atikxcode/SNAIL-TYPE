@@ -50,3 +50,48 @@ body {
 .animate-pulse-glow {
   animation: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
+
+/* Ultra-Smooth Typing Optimizations */
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Hardware-accelerated scrolling */
+html {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Optimize text rendering for typing */
+.font-mono {
+  font-feature-settings: "kern" 1, "liga" 0;
+  letter-spacing: 0;
+  will-change: contents;
+}
+
+/* Caret animation optimizations */
+@keyframes caret-blink {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0;
+  }
+}
+
+/* Prevent layout thrashing during typing */
+input[type="text"] {
+  contain: strict;
+}
+
+/* GPU-accelerated color transitions */
+span {
+  will-change: color;
+  backface-visibility: hidden;
+  perspective: 1000px;
+}

@@ -5,7 +5,7 @@ export const verifyAuth = async (req) => {
   try {
     // Get the session cookie from the request
     const token = req.cookies['__session'] || null;
-    
+
     if (!token) {
       return null;
     }

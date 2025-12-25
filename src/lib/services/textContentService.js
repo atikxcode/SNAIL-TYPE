@@ -1,6 +1,6 @@
 // lib/services/textContentService.js
-import clientPromise from '../db/mongoClient';
-import { DB_NAME } from '../db/mongoClient';
+import clientPromise from '@/lib/db/mongoClient';
+import { DB_NAME } from '@/lib/db/mongoClient';
 import { ObjectId } from 'mongodb';
 import { generateTextByDifficulty } from './wordGenerator';
 

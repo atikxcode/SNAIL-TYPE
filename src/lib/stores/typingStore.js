@@ -184,19 +184,25 @@ export const useTypingStore = create((set, get) => ({
   backspaceWord: () => {
     const state = get();
     // Only allow backspace if we have history and the current input is empty
-    // (The component should check input empty, but we can check too or just execute)
     if (state.currentWordIndex > 0 && state.history.length > 0) {
-      const newHistory = [...state.history];
-      const prevWord = newHistory.pop();
+      // Check if the previous word was typed incorrectly
+      const prevIndex = state.currentWordIndex - 1;
+      const prevTypedWord = state.history[prevIndex];
+      const prevTargetWord = state.currentTestText[prevIndex];
 
-      set({
-        currentWordIndex: state.currentWordIndex - 1,
-        inputValue: prevWord,
-        history: newHistory,
-        // We might want to remove the last error tracking if we were tracking specific errors
-        // But calculateStats recalculates everything based on history anyway.
-      });
-      get().calculateStats();
+      // Only allow going back if the previous word has errors (typed != target)
+      if (prevTypedWord !== prevTargetWord) {
+        const newHistory = [...state.history];
+        const prevWord = newHistory.pop();
+
+        set({
+          currentWordIndex: prevIndex,
+          inputValue: prevWord,
+          history: newHistory,
+        });
+        get().calculateStats();
+      }
+      // If word was typed correctly, do nothing - can't go back
     }
   },
 

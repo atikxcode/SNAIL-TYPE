@@ -4,17 +4,20 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!supabaseUrl || !supabaseServiceRoleKey) {
-  throw new Error('Missing Supabase environment variables');
-}
+let supabaseAdmin = null;
 
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
+if (!supabaseUrl || !supabaseServiceRoleKey) {
+  console.warn('Supabase environment variables missing. Using Mock DB Mode.');
+} else {
+  supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
+}
 
 /**
  * Sync user to PostgreSQL when they sign in
- * @param {Object} userClaims - Firebase user claims from ID token
  */
 export const syncUserToPostgres = async (userClaims) => {
+  if (!supabaseAdmin) return { success: true }; // Mock success
+
   try {
     const { data, error } = await supabaseAdmin
       .from('users')
@@ -42,9 +45,20 @@ export const syncUserToPostgres = async (userClaims) => {
 
 /**
  * Get user by Firebase UID
- * @param {string} firebaseUid - Firebase user ID
  */
 export const getUserByFirebaseUid = async (firebaseUid) => {
+  // Mock Mode
+  if (!supabaseAdmin || firebaseUid === 'mock-user-id') {
+    return {
+      id: 'mock-db-id',
+      firebase_uid: 'mock-user-id',
+      email: 'demo@snailtype.com',
+      display_name: 'Demo User',
+      photo_url: 'https://via.placeholder.com/150',
+      created_at: new Date().toISOString()
+    };
+  }
+
   try {
     const { data, error } = await supabaseAdmin
       .from('users')
@@ -52,7 +66,7 @@ export const getUserByFirebaseUid = async (firebaseUid) => {
       .eq('firebase_uid', firebaseUid)
       .single();
 
-    if (error && error.code !== 'PGRST116') { // PGRST116 is "Row not found"
+    if (error && error.code !== 'PGRST116') {
       console.error('Error fetching user from PostgreSQL:', error);
       throw error;
     }

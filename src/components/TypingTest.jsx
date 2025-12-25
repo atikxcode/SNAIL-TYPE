@@ -2,12 +2,98 @@
 
 'use client';
 
-import { useState, useEffect, useRef, useLayoutEffect } from 'react';
+import { useState, useEffect, useRef, useLayoutEffect, memo } from 'react';
 import { useTypingStore } from '@/lib/stores/typingStore';
 import { useAuth } from '@/lib/hooks/useAuth';
 
 import ResultsScreen from './ResultsScreen';
 import CustomDurationModal from './CustomDurationModal';
+
+// Memoized Word Component for performance
+const Word = memo(({ word, wordIndex, isCurrent, isCompleted, inputValue, historyword }) => {
+  const chars = word.split('');
+  const inputChars = isCurrent ? inputValue.split('') : [];
+
+  // STRICT LAYOUT: height 52px, flex center to enforce line height
+  let wordClass = "relative mx-1.5 rounded-lg inline-flex items-center z-10 ";
+  const wordStyle = {
+    height: '52px',
+    lineHeight: '52px',
+    // GPU acceleration
+    transform: 'translateZ(0)',
+    backfaceVisibility: 'hidden',
+  };
+
+  return (
+    <div
+      id={`word-${wordIndex}`}
+      className={wordClass}
+      style={wordStyle}
+    >
+      {chars.map((char, charIndex) => {
+        let charClass = "text-3xl font-mono relative select-none transition-colors duration-75 ";
+
+        if (isCompleted) {
+          if (historyword) {
+            const typedChar = historyword[charIndex];
+            if (typedChar === char) {
+              charClass += "text-text-main";
+            } else if (typedChar !== undefined) {
+              charClass += "text-error";
+            } else {
+              charClass += "text-error opacity-50";
+            }
+          } else {
+            charClass += "text-text-main";
+          }
+        } else if (isCurrent) {
+          const typedChar = inputChars[charIndex];
+          const isTyped = charIndex < inputChars.length;
+
+          if (isTyped) {
+            if (typedChar === char) {
+              charClass += "text-text-main";
+            } else {
+              charClass += "text-error";
+            }
+          } else {
+            charClass += "text-text-sub";
+          }
+          return <span id={`char-${wordIndex}-${charIndex}`} key={charIndex} className={charClass}>{char}</span>;
+        } else {
+          charClass += "text-text-sub";
+        }
+
+        return <span key={charIndex} className={charClass}>{char}</span>;
+      })}
+
+      {/* Extra Characters for Current Word */}
+      {isCurrent && inputChars.length > chars.length && inputChars.slice(chars.length).map((char, i) => (
+        <span key={`extra-${i}`} className="text-3xl font-mono text-error-dark opacity-80">{char}</span>
+      ))}
+
+      {/* Extra Characters for Completed Words */}
+      {isCompleted && (historyword?.length > chars.length) &&
+        historyword.slice(chars.length).split('').map((char, i) => (
+          <span key={`extra-hist-${i}`} className="text-3xl font-mono text-error-dark opacity-80">{char}</span>
+        ))}
+    </div>
+  );
+}, (prevProps, nextProps) => {
+  // Custom comparison to really avoid re-renders
+  if (prevProps.isCurrent !== nextProps.isCurrent) return false;
+  if (prevProps.wordIndex !== nextProps.wordIndex) return false;
+  if (prevProps.word !== nextProps.word) return false;
+
+  // If it was passed and is now passed (history), no change unless history changed (unlikely for past words)
+  if (prevProps.isCompleted && nextProps.isCompleted) return true;
+
+  // If it is current, we MUST re-render on inputValue change
+  if (nextProps.isCurrent && prevProps.inputValue !== nextProps.inputValue) return false;
+
+  return true;
+});
+Word.displayName = 'Word';
 
 const TypingTest = () => {
   const {
@@ -31,11 +117,62 @@ const TypingTest = () => {
     testDuration // Import value from store
   } = useTypingStore();
 
+  // Comprehensive word pool - 400+ common English words
   const WORDS_POOL = [
-    // ... pool stays the same
-    'the', 'be', 'to', 'of', 'and', 'a', 'in', 'that', 'have', 'i', 'it', 'for', 'not', 'on', 'with', 'he', 'as', 'you', 'do', 'at',
-    // ...
-    'requiring', 'required', 'requires', 'reporting', 'reported', 'reports', 'deciding', 'decided', 'decides', 'pulling', 'pulled', 'pulls'
+    // Most common words
+    'the', 'be', 'to', 'of', 'and', 'a', 'in', 'that', 'have', 'i', 'it', 'for', 'not', 'on', 'with',
+    'he', 'as', 'you', 'do', 'at', 'this', 'but', 'his', 'by', 'from', 'they', 'we', 'say', 'her', 'she',
+    'or', 'an', 'will', 'my', 'one', 'all', 'would', 'there', 'their', 'what', 'so', 'up', 'out', 'if', 'about',
+    'who', 'get', 'which', 'go', 'me', 'when', 'make', 'can', 'like', 'time', 'no', 'just', 'him', 'know', 'take',
+    'people', 'into', 'year', 'your', 'good', 'some', 'could', 'them', 'see', 'other', 'than', 'then', 'now', 'look', 'only',
+    'come', 'its', 'over', 'think', 'also', 'back', 'after', 'use', 'two', 'how', 'our', 'work', 'first', 'well', 'way',
+    'even', 'new', 'want', 'because', 'any', 'these', 'give', 'day', 'most', 'us', 'is', 'was', 'are', 'been', 'has',
+    'had', 'did', 'does', 'were', 'being', 'having', 'very', 'much', 'more', 'such', 'here', 'where', 'why', 'how',
+    // Action verbs
+    'run', 'walk', 'jump', 'play', 'read', 'write', 'speak', 'listen', 'watch', 'feel', 'learn',
+    'teach', 'help', 'start', 'stop', 'open', 'close', 'push', 'pull', 'turn', 'move', 'hold', 'bring',
+    'send', 'receive', 'find', 'lose', 'keep', 'leave', 'stay', 'change', 'grow', 'fall', 'rise', 'set',
+    'build', 'break', 'fix', 'cut', 'add', 'remove', 'put', 'pick', 'drop', 'throw', 'catch', 'hit', 'kick',
+    // Common nouns
+    'world', 'life', 'hand', 'part', 'child', 'eye', 'woman', 'place', 'week', 'case', 'point', 'government',
+    'company', 'number', 'group', 'problem', 'fact', 'money', 'month', 'night', 'home', 'water', 'room',
+    'mother', 'area', 'story', 'word', 'family', 'face', 'name', 'house', 'school', 'state', 'city', 'country',
+    'book', 'paper', 'letter', 'page', 'door', 'window', 'table', 'chair', 'floor', 'wall', 'light', 'sun',
+    'moon', 'star', 'tree', 'flower', 'grass', 'animal', 'bird', 'fish', 'cat', 'dog', 'food', 'bread',
+    // Technology
+    'computer', 'phone', 'screen', 'keyboard', 'mouse', 'internet', 'website', 'email', 'data', 'file',
+    'program', 'code', 'system', 'network', 'server', 'cloud', 'software', 'hardware', 'device', 'app',
+    'digital', 'online', 'download', 'upload', 'stream', 'share', 'post', 'search', 'click', 'type',
+    // Common adjectives
+    'big', 'small', 'large', 'little', 'long', 'short', 'tall', 'wide', 'deep', 'high', 'low', 'fast',
+    'slow', 'hot', 'cold', 'warm', 'cool', 'soft', 'hard', 'smooth', 'rough', 'heavy', 'dark',
+    'bright', 'old', 'young', 'early', 'late', 'easy', 'simple', 'complex', 'clean', 'dirty',
+    'dry', 'wet', 'empty', 'full', 'free', 'busy', 'quiet', 'loud', 'happy', 'sad',
+    'nice', 'great', 'beautiful', 'ugly', 'rich', 'poor', 'strong', 'weak', 'safe', 'dangerous',
+    // Common adverbs
+    'always', 'never', 'often', 'sometimes', 'usually', 'rarely', 'quickly', 'slowly', 'carefully', 'easily',
+    'hardly', 'almost', 'already', 'still', 'again', 'together', 'apart', 'forward', 'backward', 'inside',
+    'outside', 'above', 'below', 'near', 'far', 'everywhere', 'nowhere', 'anywhere',
+    // Prepositions and conjunctions
+    'across', 'against', 'along', 'among', 'around', 'before', 'behind',
+    'beneath', 'beside', 'between', 'beyond', 'during', 'except', 'through',
+    'toward', 'under', 'until', 'upon', 'within', 'without', 'although', 'therefore',
+    // Extended vocabulary
+    'something', 'nothing', 'everything', 'someone', 'anyone', 'everyone', 'myself', 'yourself', 'himself',
+    'herself', 'itself', 'ourselves', 'themselves', 'another', 'either', 'neither', 'both', 'several', 'few',
+    'many', 'every', 'each', 'own', 'same', 'different', 'next', 'last', 'certain', 'possible',
+    'important', 'necessary', 'available', 'likely', 'able', 'ready', 'sure', 'real', 'major', 'better',
+    'best', 'right', 'left', 'wrong', 'true', 'false', 'whole', 'final', 'main', 'public', 'private',
+    // Professional words
+    'professional', 'organization', 'management', 'development', 'performance', 'strategy', 'communication',
+    'relationship', 'experience', 'responsibility', 'opportunity', 'presentation', 'conference', 'efficiency',
+    'productivity', 'innovation', 'technology', 'infrastructure', 'sustainability', 'environment',
+    // More common words
+    'actually', 'probably', 'certainly', 'definitely', 'obviously', 'clearly', 'simply', 'exactly',
+    'especially', 'particularly', 'generally', 'usually', 'recently', 'finally', 'suddenly', 'immediately',
+    'complete', 'current', 'recent', 'common', 'special', 'specific', 'particular', 'general', 'similar',
+    'required', 'requires', 'requiring', 'reported', 'reports', 'reporting', 'decided', 'decides', 'deciding',
+    'pulled', 'pulls', 'pulling', 'create', 'design', 'develop', 'produce', 'provide', 'offer', 'support'
   ];
 
   const { user } = useAuth();
@@ -56,6 +193,7 @@ const TypingTest = () => {
   const [showCustomDuration, setShowCustomDuration] = useState(false);
 
   const timerRef = useRef(null);
+  const tabPressedRef = useRef(false); // Track if Tab is currently held down
 
   // Initialize
   useEffect(() => {
@@ -106,33 +244,30 @@ const TypingTest = () => {
     }, 10);
   };
 
-  // Handle Key Down (Space/Enter)
+  // Handle Key Down (Space/Enter/Tab+Enter)
   const handleKeyDown = (e) => {
-    // Tab + Enter = Restart
-    if (e.key === 'Enter' && isTestActive === false && e.target.value === '') {
-      // if we are in results screen, this might trigger restart if bound
-      // handled by global/button
+    // Tab key tracking for Tab+Enter shortcut
+    if (e.key === 'Tab') {
+      e.preventDefault(); // Prevent tab from moving focus
+      tabPressedRef.current = true;
+      return;
     }
 
-    // Check for Tab + Enter to restart
-    if (e.key === 'Enter' && e.keyCode === 13) {
-      // We can implement tab+enter logic if needed
+    // Tab + Enter = Restart Test
+    if (e.key === 'Enter' && tabPressedRef.current) {
+      e.preventDefault();
+      resetTest();
+      tabPressedRef.current = false;
+      return;
     }
 
     // Handle Backspace
     if (e.key === 'Backspace') {
       if (inputValue.length === 0) {
-        // Only prevent default and trigger backspaceWord if input is empty
-        // browser handles backspace within the input naturally
-        // But we must NOT prevent default if we want normal backspace behavior inside input?
-        // Actually, for empty input, there is no normal behavior except maybe navigation back.
-        // We want to trigger custom action.
         e.preventDefault();
         backspaceWord();
       }
-      // If control + backspace, we might need special handling if we want to delete whole word back
       if (e.ctrlKey && inputValue.length === 0) {
-        // also trigger backspaceWord
         e.preventDefault();
         backspaceWord();
       }
@@ -140,13 +275,19 @@ const TypingTest = () => {
 
     // Submit Word on Space Only
     if (e.key === ' ') {
-      // Prevent space on empty input (don't skip words)
       if (inputValue.length === 0) {
         e.preventDefault();
         return;
       }
-      e.preventDefault(); // Prevent space from being typed
+      e.preventDefault();
       submitWord();
+    }
+  };
+
+  // Handle Key Up (for Tab+Enter tracking)
+  const handleKeyUp = (e) => {
+    if (e.key === 'Tab') {
+      tabPressedRef.current = false;
     }
   };
 
@@ -200,23 +341,57 @@ const TypingTest = () => {
 
   // Keep focus and Scroll to Word
   useEffect(() => {
-    // Focus
-    const focusInput = () => inputRef.current?.focus();
-    document.addEventListener('keydown', focusInput);
+    // Focus on keydown
+    const focusInput = (e) => {
+      // Don't focus if Tab (handled separately for shortcut)
+      if (e.key !== 'Tab') {
+        inputRef.current?.focus();
+      }
+    };
 
-    // Auto-scroll to keep active word in view (Manual scrollTop for precision)
+    // Global Tab+Enter shortcut handler
+    const handleGlobalKeyDown = (e) => {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        tabPressedRef.current = true;
+      }
+      if (e.key === 'Enter' && tabPressedRef.current) {
+        e.preventDefault();
+        resetTest();
+        tabPressedRef.current = false;
+      }
+    };
+
+    const handleGlobalKeyUp = (e) => {
+      if (e.key === 'Tab') {
+        tabPressedRef.current = false;
+      }
+    };
+
+    document.addEventListener('keydown', focusInput);
+    document.addEventListener('keydown', handleGlobalKeyDown);
+    document.addEventListener('keyup', handleGlobalKeyUp);
+
+    // Auto-scroll to keep active word in view
     const currentWordEl = document.getElementById(`word-${currentWordIndex}`);
     if (currentWordEl && containerRef.current) {
       const lineY = currentWordEl.offsetTop;
-      // Scroll to the exact top of the current line
-      // This makes "Line 2 become Line 1"
-      containerRef.current.scrollTo({
-        top: lineY,
-        behavior: 'smooth'
-      });
+      const currentScroll = containerRef.current.scrollTop;
+
+      // Only scroll if we moved to a new line (threshold based on line height/2)
+      if (Math.abs(lineY - currentScroll) > 20) {
+        containerRef.current.scrollTo({
+          top: lineY,
+          behavior: 'smooth'
+        });
+      }
     }
 
-    return () => document.removeEventListener('keydown', focusInput);
+    return () => {
+      document.removeEventListener('keydown', focusInput);
+      document.removeEventListener('keydown', handleGlobalKeyDown);
+      document.removeEventListener('keyup', handleGlobalKeyUp);
+    };
   }, [currentWordIndex]); // Re-run scroll when word changes
 
   // Update Caret Position
@@ -263,8 +438,7 @@ const TypingTest = () => {
   }, [inputValue, currentWordIndex, currentTestText]);
 
 
-  // Focus & AFK Detection Logic
-  const [isFocused, setIsFocused] = useState(true);
+  // Idle Detection Logic (blur only on inactivity, not window blur)
   const [isIdle, setIsIdle] = useState(false);
   const isIdleRef = useRef(false); // Track idle state without re-running effects
   const lastInputTime = useRef(Date.now());
@@ -287,23 +461,17 @@ const TypingTest = () => {
   };
 
   useEffect(() => {
-    const onFocus = () => {
-      setIsFocused(true);
+    // Activity listeners - only for idle detection
+    const onInteraction = () => {
       lastInputTime.current = Date.now();
-      inputRef.current?.focus();
       resetIdleTimer();
     };
-    const onBlur = () => setIsFocused(false);
-
-    // Activity listeners
-    const onInteraction = () => resetIdleTimer();
     const onMouseMove = () => {
       // Check REF instead of state to avoid dependency cycles
       if (!isIdleRef.current) resetIdleTimer();
     };
 
-    window.addEventListener('focus', onFocus);
-    window.addEventListener('blur', onBlur);
+    // Only listen for user activity (removed window focus/blur listeners)
     window.addEventListener('keydown', onInteraction);
     window.addEventListener('mousedown', onInteraction);
     window.addEventListener('touchstart', onInteraction);
@@ -313,21 +481,18 @@ const TypingTest = () => {
     resetIdleTimer();
 
     return () => {
-      window.removeEventListener('focus', onFocus);
-      window.removeEventListener('blur', onBlur);
       window.removeEventListener('keydown', onInteraction);
       window.removeEventListener('mousedown', onInteraction);
       window.removeEventListener('touchstart', onInteraction);
       window.removeEventListener('mousemove', onMouseMove);
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     };
-    // Removed isIdle from dependencies to prevent loop
   }, [showResults]);
 
-  // AFK Check Interval (only counts when active, focused, and NOT idle)
+  // AFK Check Interval (only counts when active and NOT idle)
   useEffect(() => {
     let interval;
-    if (isTestActive && !showResults && isFocused && !isIdle) {
+    if (isTestActive && !showResults && !isIdle) {
       interval = setInterval(() => {
         const now = Date.now();
         const diff = now - lastInputTime.current;
@@ -337,7 +502,7 @@ const TypingTest = () => {
       }, 100);
     }
     return () => clearInterval(interval);
-  }, [isTestActive, showResults, isFocused, isIdle, addAfkDuration]);
+  }, [isTestActive, showResults, isIdle, addAfkDuration]);
 
   // Update lastInputTime on user action
   useEffect(() => {
@@ -383,76 +548,7 @@ const TypingTest = () => {
     setTimeout(() => resetTest(), 0);
   };
 
-  // RENDER HELPERS
-  const renderWord = (word, wordIndex) => {
-    const isCurrent = wordIndex === currentWordIndex;
-    const isCompleted = wordIndex < currentWordIndex;
-    // STRICT LAYOUT: height 52px, flex center to enforce line height
-    let wordClass = "relative mx-1.5 rounded-lg inline-flex items-center z-10 ";
-    // Add specific style to enforce height and line-height
-    const wordStyle = { height: '52px', lineHeight: '52px' };
 
-    const chars = word.split('');
-    const inputChars = isCurrent ? inputValue.split('') : [];
-
-    // For completed words, we get what the user ACTUALLY typed from store history
-    // We already have useTypingStore at top level. We need to grab history.
-
-    return (
-      <div key={wordIndex} id={`word-${wordIndex}`} className={wordClass} style={wordStyle}>
-        {chars.map((char, charIndex) => {
-          let charClass = "text-3xl font-mono relative select-none ";
-
-          if (isCompleted) {
-            // Access history from store
-            const historyWord = history[wordIndex];
-
-            if (historyWord) {
-              const typedChar = historyWord[charIndex];
-              if (typedChar === char) {
-                charClass += "text-text-main"; // Correct
-              } else if (typedChar !== undefined) {
-                charClass += "text-error"; // User typed wrong char
-              } else {
-                charClass += "text-error opacity-50"; // User missed this char (skipped)
-              }
-            } else {
-              charClass += "text-text-main";
-            }
-          } else if (isCurrent) {
-            const typedChar = inputChars[charIndex];
-            const isTyped = charIndex < inputChars.length;
-            const isNextToType = charIndex === inputChars.length;
-
-            if (isTyped) {
-              if (typedChar === char) {
-                charClass += "text-text-main"; // Correct -> Bright
-              } else {
-                charClass += "text-error"; // Incorrect -> Red
-              }
-            } else {
-              charClass += "text-text-sub"; // Pending -> Gray
-            }
-            // Assign ID for Caret tracking
-            return <span id={`char-${wordIndex}-${charIndex}`} key={charIndex} className={charClass}>{char}</span>;
-          } else {
-            charClass += "text-text-sub"; // Future -> Gray
-          }
-
-          return <span key={charIndex} className={charClass}>{char}</span>;
-        })}
-        {/* Extra Characters for Current Word */}
-        {isCurrent && inputChars.length > chars.length && inputChars.slice(chars.length).map((char, i) => (
-          <span key={`extra-${i}`} className="text-3xl font-mono text-error-dark opacity-80">{char}</span>
-        ))}
-        {/* Extra Characters for Completed Words (History) */}
-        {isCompleted && (history[wordIndex]?.length > chars.length) &&
-          history[wordIndex].slice(chars.length).split('').map((char, i) => (
-            <span key={`extra-hist-${i}`} className="text-3xl font-mono text-error-dark opacity-80">{char}</span>
-          ))}
-      </div>
-    );
-  };
 
   // Render Results Screen if shown
   if (showResults) {
@@ -477,6 +573,7 @@ const TypingTest = () => {
         value={inputValue}
         onChange={handleInputChange}
         onKeyDown={handleKeyDown}
+        onKeyUp={handleKeyUp}
         className="opacity-0 absolute top-0 left-0 cursor-default"
         autoFocus={!showCustomDuration}
         autoComplete="off"
@@ -563,38 +660,40 @@ const TypingTest = () => {
         style={{ height: '160px', overflow: 'hidden' }}
         onClick={() => inputRef.current?.focus()}
       >
-        {/* Render only visible words for performance - KEEP HISTORY to prevent layout shift */}
-        {(() => {
-          const visibleStart = 0; // Always start from 0 to preserve flexbox layout positions
-          const visibleEnd = Math.min(currentTestText.length, currentWordIndex + 50);
-          return currentTestText.slice(visibleStart, visibleEnd).map((word, i) => renderWord(word, visibleStart + i));
-        })()}
+        {/* Render words with memoized component for performance */}
+        {currentTestText.map((word, i) => (
+          <Word
+            key={i}
+            word={word}
+            wordIndex={i}
+            isCurrent={i === currentWordIndex}
+            isCompleted={i < currentWordIndex}
+            inputValue={i === currentWordIndex ? inputValue : ''}
+            historyword={history[i]}
+          />
+        ))}
 
-        {/* Caret - Smoother animation */}
+        {/* Caret - Smooth animation */}
         <div
           ref={caretRef}
-          className="absolute w-0.5 h-8 bg-caret-color transition-all duration-100 ease-out z-20"
+          className="absolute w-0.5 h-8 bg-caret-color transition-all duration-75 ease-out z-20"
           style={{
             left: caretPos.left - 1,
             top: caretPos.top + 5,
-            opacity: 1 // ALWAYS visible to match Monkeytype default (blinks if inactive)
+            opacity: 1
           }}
         >
           <div className={`w-full h-full bg-caret-color ${!isTestActive ? 'animate-pulse' : ''}`}></div>
         </div>
 
-        {/* Words */}
-        {currentTestText.map((word, i) => renderWord(word, i))}
-
       </div>
 
-      {/* Focus Blur Overlay */}
-      {(!isFocused || isIdle) && !showResults && (
+      {/* Idle Blur Overlay - Only shows after 5 seconds of inactivity */}
+      {isIdle && !showResults && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md cursor-pointer transition-all duration-500 animate-in fade-in"
           onClick={() => {
             inputRef.current?.focus();
-            setIsFocused(true);
             resetIdleTimer();
           }}
         >
@@ -603,7 +702,7 @@ const TypingTest = () => {
               <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-caret-color"><path d="M7 7h10v10" /><path d="M7 17 17 7" /></svg>
             </div>
             <div className="text-xl font-mono font-medium tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-text-sub to-text-main">
-              {isIdle ? 'Inactive - Click to Wake' : 'Click to Resume'}
+              Click or press any key to continue
             </div>
           </div>
         </div>
