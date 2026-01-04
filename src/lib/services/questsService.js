@@ -43,6 +43,7 @@ const QUEST_TYPES = [
  */
 export async function generateDailyQuests(firebaseUid) {
   try {
+    if (!clientPromise) throw new Error('Database not initialized');
     const client = await clientPromise;
     const db = client.db(DB_NAME);
 
@@ -82,6 +83,7 @@ export async function generateDailyQuests(firebaseUid) {
  */
 export async function getDailyQuests(firebaseUid) {
   try {
+    if (!clientPromise) throw new Error('Database not initialized');
     const client = await clientPromise;
     const db = client.db(DB_NAME);
 
@@ -114,6 +116,7 @@ export async function getDailyQuests(firebaseUid) {
  */
 export async function updateQuestProgress(firebaseUid, sessionData) {
   try {
+    if (!clientPromise) throw new Error('Database not initialized');
     const client = await clientPromise;
     const db = client.db(DB_NAME);
 
@@ -223,6 +226,7 @@ export async function updateQuestProgress(firebaseUid, sessionData) {
  */
 export async function generateDailyQuestsForAllUsers() {
   try {
+    if (!clientPromise) throw new Error('Database not initialized');
     const client = await clientPromise;
     const db = client.db(DB_NAME);
 

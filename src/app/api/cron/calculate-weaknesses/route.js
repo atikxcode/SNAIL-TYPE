@@ -7,10 +7,12 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !supabaseServiceRoleKey) {
-  throw new Error('Missing Supabase environment variables');
+  console.warn('Missing Supabase environment variables');
 }
 
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
+const supabaseAdmin = (supabaseUrl && supabaseServiceRoleKey)
+  ? createClient(supabaseUrl, supabaseServiceRoleKey)
+  : null;
 
 // Helper function to map keys to fingers
 const getKeyFinger = (key) => {
@@ -24,7 +26,7 @@ const getKeyFinger = (key) => {
     'n': 'right_index', 'm': 'right_middle', ',': 'right_ring', '.': 'right_pinky', '/': 'right_pinky',
     ' ': 'thumb'
   };
-  
+
   return fingerMap[key.toLowerCase()] || 'other';
 };
 
@@ -34,11 +36,11 @@ export async function GET(request) {
   const authHeader = request.headers.get('authorization');
   if (process.env.CRON_AUTH_TOKEN && authHeader !== `Bearer ${process.env.CRON_AUTH_TOKEN}`) {
     return new Response(
-      JSON.stringify({ error: 'Unauthorized' }), 
-      { 
-        status: 401, 
-        headers: { 'Content-Type': 'application/json' } 
-      } 
+      JSON.stringify({ error: 'Unauthorized' }),
+      {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      }
     );
   }
 
@@ -46,7 +48,7 @@ export async function GET(request) {
     // Connect to MongoDB
     const mongoClient = await clientPromise;
     const db = mongoClient.db(DB_NAME);
-    
+
     // Find users who tested in the last 30 days
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const recentSessions = await db.collection('keystrokes')
@@ -63,33 +65,33 @@ export async function GET(request) {
           }
         }
       ]).toArray();
-    
+
     const userIds = recentSessions.map(session => session._id);
-    
+
     // Process each user
     for (const userId of userIds) {
       await calculateWeaknessProfile(userId);
     }
-    
+
     return new Response(
-      JSON.stringify({ 
-        success: true, 
+      JSON.stringify({
+        success: true,
         processedUsers: userIds.length,
         message: `Processed weakness profiles for ${userIds.length} users`
-      }), 
-      { 
-        status: 200, 
-        headers: { 'Content-Type': 'application/json' } 
-      } 
+      }),
+      {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      }
     );
   } catch (error) {
     console.error('Cron job error:', error);
     return new Response(
-      JSON.stringify({ error: 'Cron job failed', details: error.message }), 
-      { 
-        status: 500, 
-        headers: { 'Content-Type': 'application/json' } 
-      } 
+      JSON.stringify({ error: 'Cron job failed', details: error.message }),
+      {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      }
     );
   }
 }
@@ -100,10 +102,10 @@ async function calculateWeaknessProfile(userId) {
     // Connect to MongoDB
     const mongoClient = await clientPromise;
     const db = mongoClient.db(DB_NAME);
-    
+
     // Get keystroke data for this user from the last 100 sessions or 30 days
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    
+
     const keystrokeDocs = await db.collection('keystrokes')
       .find({
         userId: userId,
@@ -111,23 +113,23 @@ async function calculateWeaknessProfile(userId) {
       })
       .limit(100) // Limit to last 100 batches
       .toArray();
-    
+
     // Flatten all keystrokes from all batches
     let allKeystrokes = [];
     for (const doc of keystrokeDocs) {
       allKeystrokes = allKeystrokes.concat(doc.events);
     }
-    
+
     // Calculate weak keys (error rates per key)
     const keyStats = {};
     for (const keystroke of allKeystrokes) {
       if (!keystroke.expected || keystroke.correct === undefined) continue; // Skip special keys
-      
+
       const key = keystroke.expected.toLowerCase();
       if (!keyStats[key]) {
         keyStats[key] = { correct: 0, total: 0, errors: 0 };
       }
-      
+
       keyStats[key].total += 1;
       if (keystroke.correct) {
         keyStats[key].correct += 1;
@@ -135,7 +137,7 @@ async function calculateWeaknessProfile(userId) {
         keyStats[key].errors += 1;
       }
     }
-    
+
     // Calculate error rates
     const weakKeys = Object.entries(keyStats)
       .map(([key, stats]) => ({
@@ -145,26 +147,26 @@ async function calculateWeaknessProfile(userId) {
       }))
       .sort((a, b) => b.error_rate - a.error_rate)
       .slice(0, 20); // Top 20 weak keys
-    
+
     // Calculate weak bigrams (common pairings with high error rates)
     const bigramStats = {};
     for (let i = 0; i < allKeystrokes.length - 1; i++) {
       const current = allKeystrokes[i];
       const next = allKeystrokes[i + 1];
-      
+
       if (!current.expected || !next.expected || current.correct === undefined || next.correct === undefined) continue;
-      
+
       const bigram = (current.expected + next.expected).toLowerCase();
       if (!bigramStats[bigram]) {
         bigramStats[bigram] = { correct: 0, total: 0 };
       }
-      
+
       bigramStats[bigram].total += 1;
       if (current.correct && next.correct) {
         bigramStats[bigram].correct += 1;
       }
     }
-    
+
     const weakBigrams = Object.entries(bigramStats)
       .map(([bigram, stats]) => ({
         bigram,
@@ -172,23 +174,23 @@ async function calculateWeaknessProfile(userId) {
       }))
       .sort((a, b) => b.error_rate - a.error_rate)
       .slice(0, 20); // Top 20 weak bigrams
-    
+
     // Calculate accuracy by duration (fatigue analysis)
     const accuracyByDuration = { '0-15s': [], '15-30s': [], '30-60s': [], '60s+': [] };
     for (const keystroke of allKeystrokes) {
       // Group by how far into the session this keystroke was (simplified)
       const sessionPosition = Math.min(4, Math.floor(keystroke.timestamp / 15000)); // Every 15 seconds
-      
+
       let bucket = '60s+';
       if (sessionPosition === 0) bucket = '0-15s';
       else if (sessionPosition === 1) bucket = '15-30s';
       else if (sessionPosition === 2) bucket = '30-60s';
-      
+
       if (keystroke.correct !== undefined) {
         accuracyByDuration[bucket].push(keystroke.correct ? 1 : 0);
       }
     }
-    
+
     const avgAccuracyByDuration = {};
     for (const [bucket, accuracies] of Object.entries(accuracyByDuration)) {
       if (accuracies.length > 0) {
@@ -198,7 +200,7 @@ async function calculateWeaknessProfile(userId) {
         avgAccuracyByDuration[bucket] = 100; // Default to 100% if no data
       }
     }
-    
+
     // Calculate average key latency by finger
     const fingerLatencies = {};
     for (const keystroke of allKeystrokes) {
@@ -211,14 +213,14 @@ async function calculateWeaknessProfile(userId) {
         fingerLatencies[finger].count += 1;
       }
     }
-    
+
     const avgKeyLatency = {};
     for (const [finger, data] of Object.entries(fingerLatencies)) {
       if (data.count > 0) {
         avgKeyLatency[finger] = Math.round(data.total / data.count);
       }
     }
-    
+
     // Update the weakness profile in PostgreSQL
     const { error } = await supabaseAdmin
       .from('weakness_profiles')
@@ -231,12 +233,12 @@ async function calculateWeaknessProfile(userId) {
       }, {
         onConflict: 'user_id'
       });
-    
+
     if (error) {
       console.error(`Error updating weakness profile for user ${userId}:`, error);
       throw error;
     }
-    
+
     return { success: true };
   } catch (error) {
     console.error(`Error calculating weakness profile for user ${userId}:`, error);

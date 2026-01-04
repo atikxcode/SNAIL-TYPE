@@ -5,10 +5,12 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !supabaseServiceRoleKey) {
-  throw new Error('Missing Supabase environment variables');
+  console.warn('TierService: Missing Supabase environment variables. Service will not function.');
 }
 
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
+const supabaseAdmin = (supabaseUrl && supabaseServiceRoleKey)
+  ? createClient(supabaseUrl, supabaseServiceRoleKey)
+  : null;
 
 // Tier definitions based on WPM
 const TIER_THRESHOLDS = [
@@ -45,19 +47,19 @@ export async function calculateUserTier(userId) {
   try {
     // Get user's session summaries for the last 30 days
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    
+
     const { data: sessionSummaries, error } = await supabaseAdmin
       .from('session_summaries')
       .select('avg_wpm, session_date')
       .eq('user_id', userId)
       .gte('session_date', thirtyDaysAgo.toISOString().split('T')[0])
       .order('session_date', { ascending: false });
-    
+
     if (error) {
       console.error('Error fetching session summaries for tier calculation:', error);
       return { success: false, error: error.message };
     }
-    
+
     if (!sessionSummaries || sessionSummaries.length === 0) {
       // If no recent sessions, try getting their best WPM from user_stats
       const { data: userStats, error: statsError } = await supabaseAdmin
@@ -65,42 +67,42 @@ export async function calculateUserTier(userId) {
         .select('best_wpm')
         .eq('user_id', userId)
         .single();
-      
+
       if (statsError) {
         console.error('Error fetching user stats for tier calculation:', statsError);
         return { success: false, error: statsError.message };
       }
-      
+
       const tier = getTierFromWpm(userStats?.best_wpm || 0);
-      return { 
-        success: true, 
-        tier: tier.name, 
+      return {
+        success: true,
+        tier: tier.name,
         wpm: userStats?.best_wpm || 0,
-        tierData: tier 
+        tierData: tier
       };
     }
-    
+
     // Calculate average WPM over the last 30 days
     const totalWpm = sessionSummaries.reduce((sum, session) => sum + (session.avg_wpm || 0), 0);
     const avgWpm = sessionSummaries.length > 0 ? totalWpm / sessionSummaries.length : 0;
-    
+
     const tier = getTierFromWpm(avgWpm);
-    
+
     // Update user's tier in their profile
     const { error: updateError } = await supabaseAdmin
       .from('user_stats')
       .update({ current_tier: tier.name })
       .eq('user_id', userId);
-    
+
     if (updateError) {
       console.error('Error updating user tier:', updateError);
     }
-    
-    return { 
-      success: true, 
-      tier: tier.name, 
+
+    return {
+      success: true,
+      tier: tier.name,
       wpm: avgWpm,
-      tierData: tier 
+      tierData: tier
     };
   } catch (error) {
     console.error('Error calculating user tier:', error);
@@ -117,18 +119,18 @@ export async function getUserTierProgress(userId) {
     if (!tierResult.success) {
       return { success: false, error: tierResult.error };
     }
-    
+
     const currentTier = tierResult.tierData;
-    
+
     // Find next tier
     const currentTierIndex = TIER_THRESHOLDS.findIndex(t => t.name === currentTier.name);
-    const nextTier = currentTierIndex < TIER_THRESHOLDS.length - 1 ? 
+    const nextTier = currentTierIndex < TIER_THRESHOLDS.length - 1 ?
       TIER_THRESHOLDS[currentTierIndex + 1] : null;
-    
+
     // Calculate progress percentage to next tier (or to current tier's requirement if max tier)
     let progress = 0;
     let wpmToNextTier = 0;
-    
+
     if (nextTier && currentTierIndex < TIER_THRESHOLDS.length - 1) {
       // Calculate how far they are to the next tier requirement
       wpmToNextTier = nextTier.minWpm - tierResult.wpm;
@@ -141,7 +143,7 @@ export async function getUserTierProgress(userId) {
       const wpmInCurrentTier = Math.min(tierResult.wpm, 200) - currentTier.minWpm;
       progress = Math.min(100, Math.round((wpmInCurrentTier / wpmRange) * 100));
     }
-    
+
     return {
       success: true,
       currentTier: currentTier,
@@ -163,11 +165,11 @@ export async function updateUserTierAfterSession(userId) {
   try {
     // Calculate and update the user's tier
     const tierResult = await calculateUserTier(userId);
-    
+
     if (!tierResult.success) {
       return tierResult;
     }
-    
+
     return {
       success: true,
       currentTier: tierResult.tier,

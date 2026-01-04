@@ -10,21 +10,22 @@ if (!admin.apps.length) {
     const privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY;
 
     if (!projectId || !clientEmail || !privateKey) {
-      throw new Error(`Missing Firebase Admin environment variables: ${!projectId ? 'FIREBASE_ADMIN_PROJECT_ID ' : ''}${!clientEmail ? 'FIREBASE_ADMIN_CLIENT_EMAIL ' : ''}${!privateKey ? 'FIREBASE_ADMIN_PRIVATE_KEY' : ''}`);
+      console.warn(`Missing Firebase Admin environment variables: ${!projectId ? 'FIREBASE_ADMIN_PROJECT_ID ' : ''}${!clientEmail ? 'FIREBASE_ADMIN_CLIENT_EMAIL ' : ''}${!privateKey ? 'FIREBASE_ADMIN_PRIVATE_KEY' : ''}`);
+      console.warn('Skipping Firebase Admin initialization.');
+    } else {
+      admin.initializeApp({
+        credential: admin.credential.cert({
+          projectId,
+          clientEmail,
+          privateKey: privateKey.replace(/\\n/g, '\n'),
+        }),
+      });
     }
-
-    admin.initializeApp({
-      credential: admin.credential.cert({
-        projectId,
-        clientEmail,
-        privateKey: privateKey.replace(/\\n/g, '\n'),
-      }),
-    });
   } catch (error) {
     console.error('Firebase Admin initialization error:', error);
-    throw new Error(`Firebase Admin failed to initialize: ${error.message}`);
+    // Continue without initialization to allow build to proceed
   }
 }
 
-export const adminAuth = admin.auth();
+export const adminAuth = admin.apps.length ? admin.auth() : null;
 export default admin;

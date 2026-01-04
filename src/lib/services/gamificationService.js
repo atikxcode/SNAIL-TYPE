@@ -5,30 +5,32 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !supabaseServiceRoleKey) {
-  throw new Error('Missing Supabase environment variables');
+  console.warn('GamificationService: Missing Supabase environment variables. Service will not function.');
 }
 
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
+const supabaseAdmin = (supabaseUrl && supabaseServiceRoleKey)
+  ? createClient(supabaseUrl, supabaseServiceRoleKey)
+  : null;
 
 /**
  * Calculate XP earned from a test session
  */
 export function calculateXpEarned(sessionData, userStats) {
   let xp = 0;
-  
+
   // Base XP for completing a test
   xp += 10;
-  
+
   // Bonus for high accuracy (>95%)
   if (sessionData.accuracy > 95) {
     xp += 5;
   }
-  
+
   // Bonus for beating personal best WPM (if we have previous records)
   if (userStats && sessionData.wpm > (userStats.best_wpm || 0)) {
     xp += 10;
   }
-  
+
   // Bonus for high WPM
   if (sessionData.wpm >= 100) {
     xp += 15; // Top tier WPM
@@ -37,7 +39,7 @@ export function calculateXpEarned(sessionData, userStats) {
   } else if (sessionData.wpm >= 50) {
     xp += 5;  // Moderate WPM
   }
-  
+
   return xp;
 }
 
@@ -80,34 +82,34 @@ export async function awardXp(userId, sessionXp) {
       .select('xp, level')
       .eq('user_id', userId)
       .single();
-    
+
     if (selectError) {
       console.error('Error getting user stats:', selectError);
       return { success: false, error: selectError.message };
     }
-    
+
     // Calculate new XP and level
     const newXp = (currentStats?.xp || 0) + sessionXp;
     const oldLevel = currentStats?.level || 1;
     const newLevel = getLevelFromXp(newXp);
-    
+
     // Update user stats with new XP and level if needed
     const { error: updateError } = await supabaseAdmin
       .from('user_stats')
-      .update({ 
+      .update({
         xp: newXp,
         level: newLevel
       })
       .eq('user_id', userId);
-    
+
     if (updateError) {
       console.error('Error updating user stats:', updateError);
       return { success: false, error: updateError.message };
     }
-    
+
     // Check if user leveled up
     const levelUp = newLevel > oldLevel;
-    
+
     return {
       success: true,
       newXp,
@@ -128,34 +130,34 @@ export async function awardXp(userId, sessionXp) {
 export async function checkAchievements(userId, sessionData, userStats) {
   try {
     const unlockedAchievements = [];
-    
+
     // Get all achievements
     const { data: allAchievements, error: achError } = await supabaseAdmin
       .from('achievements')
       .select('*');
-    
+
     if (achError) {
       throw achError;
     }
-    
+
     // Get user's already unlocked achievements
     const { data: unlockedAchs, error: unlockedError } = await supabaseAdmin
       .from('user_achievements')
       .select('achievement_id')
       .eq('user_id', userId);
-    
+
     if (unlockedError) {
       throw unlockedError;
     }
-    
+
     const unlockedAchIds = new Set(unlockedAchs?.map(ua => ua.achievement_id) || []);
-    
+
     // Check each achievement condition
     for (const achievement of allAchievements) {
       if (unlockedAchIds.has(achievement.id)) continue; // Skip if already unlocked
-      
+
       let isConditionMet = false;
-      
+
       switch (achievement.key) {
         case 'first_test':
           isConditionMet = (userStats?.total_tests || 0) >= 1;
@@ -197,7 +199,7 @@ export async function checkAchievements(userId, sessionData, userStats) {
         default:
           isConditionMet = false;
       }
-      
+
       if (isConditionMet) {
         // Award the achievement
         const { error: awardError } = await supabaseAdmin
@@ -206,19 +208,19 @@ export async function checkAchievements(userId, sessionData, userStats) {
             user_id: userId,
             achievement_id: achievement.id
           });
-        
+
         if (!awardError) {
           unlockedAchievements.push({
             ...achievement,
             xp_reward: achievement.xp_reward
           });
-          
+
           // Award XP for the achievement
           await awardXp(userId, achievement.xp_reward);
         }
       }
     }
-    
+
     return { success: true, unlockedAchievements };
   } catch (error) {
     console.error('Error checking achievements:', error);
@@ -237,17 +239,17 @@ export async function updateStreak(userId) {
       .select('last_test_date, current_streak_days, longest_streak_days')
       .eq('user_id', userId)
       .single();
-    
+
     if (selectError) {
       console.error('Error getting user stats for streak:', selectError);
       return { success: false, error: selectError.message };
     }
-    
+
     const today = new Date().toISOString().split('T')[0];
     const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]; // 24 hours ago
-    
+
     let newStreak = currentStats?.current_streak_days || 0;
-    
+
     // Check if this is a consecutive day test to maintain streak
     if (currentStats?.last_test_date === yesterday) {
       // Continue current streak
@@ -257,10 +259,10 @@ export async function updateStreak(userId) {
       newStreak = 1;
     }
     // If last test date is today, streak remains the same (already counted)
-    
+
     // Update longest streak if current streak is greater
     const newLongestStreak = Math.max(newStreak, currentStats?.longest_streak_days || 0);
-    
+
     // Update the user stats with new streak values
     const { error: updateError } = await supabaseAdmin
       .from('user_stats')
@@ -270,12 +272,12 @@ export async function updateStreak(userId) {
         last_test_date: today
       })
       .eq('user_id', userId);
-    
+
     if (updateError) {
       console.error('Error updating streak:', updateError);
       return { success: false, error: updateError.message };
     }
-    
+
     return {
       success: true,
       currentStreak: newStreak,
@@ -297,12 +299,12 @@ export async function canUseStreakFreeze(userId) {
       .select('streak_freezes_available')
       .eq('user_id', userId)
       .single();
-    
+
     if (error) {
       console.error('Error checking streak freezes:', error);
       return false;
     }
-    
+
     return (userStats?.streak_freezes_available || 0) > 0;
   } catch (error) {
     console.error('Error in canUseStreakFreeze:', error);
@@ -320,11 +322,11 @@ export async function useStreakFreeze(userId) {
       .select('streak_freezes_available, current_streak_days')
       .eq('user_id', userId)
       .single();
-    
+
     if (selectError || (userStats?.streak_freezes_available || 0) <= 0) {
       return { success: false, message: 'No streak freezes available' };
     }
-    
+
     // Update the streak freeze count
     const { error: updateError } = await supabaseAdmin
       .from('user_stats')
@@ -332,11 +334,11 @@ export async function useStreakFreeze(userId) {
         streak_freezes_available: Math.max(0, (userStats.streak_freezes_available || 0) - 1)
       })
       .eq('user_id', userId);
-    
+
     if (updateError) {
       return { success: false, error: updateError.message };
     }
-    
+
     return { success: true, message: 'Streak freeze used successfully' };
   } catch (error) {
     console.error('Error using streak freeze:', error);

@@ -15,10 +15,12 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !supabaseServiceRoleKey) {
-  throw new Error('Missing Supabase environment variables');
+  console.warn('Missing Supabase environment variables');
 }
 
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
+const supabaseAdmin = (supabaseUrl && supabaseServiceRoleKey)
+  ? createClient(supabaseUrl, supabaseServiceRoleKey)
+  : null;
 
 /**
  * Updates user stats and session summaries when a session is completed
@@ -104,10 +106,10 @@ const upsertSessionSummary = async (userId, sessionDate, sessionData) => {
     summaryData = {
       tests_completed: existingSummary.tests_completed + 1,
       avg_wpm: ((existingSummary.avg_wpm * existingSummary.tests_completed) + sessionData.wpm) /
-               (existingSummary.tests_completed + 1),
+        (existingSummary.tests_completed + 1),
       best_wpm: Math.max(existingSummary.best_wpm || 0, sessionData.wpm),
       avg_accuracy: ((existingSummary.avg_accuracy * existingSummary.tests_completed) + sessionData.accuracy) /
-                   (existingSummary.tests_completed + 1),
+        (existingSummary.tests_completed + 1),
       total_keystrokes: existingSummary.total_keystrokes + (sessionData.duration * sessionData.wpm * 5) // approx keystrokes
     };
 
